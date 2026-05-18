@@ -8,6 +8,7 @@ import ArchitectureTab from './pages/ArchitectureTab';
 import AuthCallback from './pages/AuthCallback';
 import { Search, Github, Loader2, GitBranch, FileCode2, Share2, Sparkles, MessageSquare, BookOpen, Layers } from 'lucide-react';
 import { useEffect } from 'react';
+import { authService } from './api';
 import { useNavigate } from 'react-router-dom';
 import MyPage from './pages/MyPage';
 import DashboardLayout from './components/DashboardLayout';
@@ -41,13 +42,7 @@ function Home() {
     }
 
     // 토큰이 있으면 유저 정보를 가져와서 해당 유저의 경로로 이동
-    fetch('http://localhost:8000/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => {
-      if (!res.ok) throw new Error();
-      return res.json();
-    })
+    authService.me()
     .then(user => {
       const username = user.github_username || user.name;
       navigate(`/${username}/analysis`, { replace: true });

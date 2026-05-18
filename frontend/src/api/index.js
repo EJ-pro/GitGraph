@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8000';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const getHeaders = () => {
   const token = localStorage.getItem('token');
@@ -68,6 +68,11 @@ export const projectService = {
   getArchitectureAnalysis: (sessionId, data = {}) => api.post('/generate/architecture-analysis', { session_id: sessionId, ...data }),
   getProjectPipeline: (sessionId, data = {}) => api.post('/generate/pipeline', { session_id: sessionId, ...data }),
   checkUpdate: (projectId) => api.post(`/projects/${projectId}/check-update`),
+  getProjects: () => api.get('/projects'),
+};
+
+export const inquiryService = {
+  submit: (data) => api.post('/inquiries', data),
 };
 
 export const chatService = {
@@ -75,6 +80,8 @@ export const chatService = {
   getHistory: (sessionId) => api.get(`/chat/history/${sessionId}`),
   getSessionInfo: (sessionId) => api.get(`/chat/session/${sessionId}/info`),
   getProjectSessions: (projectId) => api.get(`/chat/sessions/${projectId}`),
+  createSession: (data) => api.post('/chat/session/new', data),
+  deleteSession: (sessionId) => api.delete(`/chat/session/${sessionId}`),
 };
 
 export const docsService = {

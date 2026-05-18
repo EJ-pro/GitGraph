@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Loader2, Plus, MessageSquare, Menu, X, FileText, Link, Check, ExternalLink, ChevronDown, Zap, Sparkles, Crown, ShieldCheck, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { chatService, authService } from '../api';
+import { chatService, authService, BASE_URL } from '../api';
 import ReactMarkdown from 'react-markdown';
 
 function Chat() {
@@ -127,24 +127,13 @@ function Chat() {
     if (!currentProjectId) return;
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/chat/session/new', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}` 
-        },
-        body: JSON.stringify({
-          project_id: currentProjectId,
-          provider: provider,
-          model_name: modelName
-        })
+      const data = await chatService.createSession({
+        project_id: currentProjectId,
+        provider: provider,
+        model_name: modelName
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSessionId(data.session_id);
-        navigate('.', { state: { ...location.state, sessionId: data.session_id }, replace: true });
-      }
+      setSessionId(data.session_id);
+      navigate('.', { state: { ...location.state, sessionId: data.session_id }, replace: true });
     } catch (err) {
       console.error(err);
     } finally {
@@ -156,12 +145,8 @@ function Chat() {
     if (!window.confirm("Do you want to delete this chat from the list?")) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/chat/session/${sid}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      if (response.ok) {
+      await chatService.deleteSession(sid);
+      {
         // 현재 열려있는 세션이면 다른 세션으로 이동하거나 초기화
         if (sid === sessionId) {
           setMessages([{ role: 'assistant', content: 'Hello! Feel free to ask anything about the analyzed code.' }]);
@@ -191,14 +176,14 @@ function Chat() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch(`${BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          session_id: sessionId, 
+          session_id: sessionId,
           query: input,
           provider: provider,
           model_name: modelName,

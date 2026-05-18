@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { inquiryService } from '../api';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp, Mail, Phone, User, Github, Brain } from 'lucide-react';
 import UserProfile from '../components/UserProfile';
@@ -47,27 +48,13 @@ function FAQ() {
 
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/inquiries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(inquiryData)
-      });
-
-      if (response.ok) {
-        alert('Your inquiry has been successfully submitted.');
-        setInquiryData({ title: '', content: '' });
-        setActiveTab('faq');
-      } else {
-        const data = await response.json();
-        alert(data.detail || 'An error occurred while submitting your inquiry.');
-      }
+      await inquiryService.submit(inquiryData);
+      alert('Your inquiry has been successfully submitted.');
+      setInquiryData({ title: '', content: '' });
+      setActiveTab('faq');
     } catch (err) {
       console.error('Failed to submit inquiry:', err);
-      alert('An error occurred while communicating with the server.');
+      alert(err.message || 'An error occurred while submitting your inquiry.');
     } finally {
       setIsSubmitting(false);
     }

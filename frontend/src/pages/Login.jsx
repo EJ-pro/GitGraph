@@ -1,7 +1,7 @@
 import { Github, Brain, Sparkles, Shield, Zap, ArrowRight, GitBranch, FileText, MessageSquare, Network, CheckCircle2, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
-import { dashboardService } from '../api';
+import { dashboardService, BASE_URL } from '../api';
 
 /* ─── 타이핑 애니메이션 ─── */
 const TYPING_TEXTS = [
@@ -200,7 +200,7 @@ function Login() {
   });
 
   const handleGithubLogin = () => {
-    window.location.href = 'http://localhost:8000/auth/github/login';
+    window.location.href = `${BASE_URL}/auth/github/login`;
   };
 
   return (

@@ -2,6 +2,7 @@ import { Outlet, NavLink, useLocation, useNavigate, useParams } from 'react-rout
 import { MessageSquare, FileText, Target, Github, Share2, GitBranch, ChevronDown, PanelLeftClose, PanelLeft, Brain } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import UserProfile from './UserProfile';
+import { projectService } from '../api';
 
 
 
@@ -32,15 +33,8 @@ function DashboardLayout() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const res = await fetch('http://localhost:8000/projects', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProjects(data);
-        }
+        const data = await projectService.getProjects();
+        setProjects(data);
       } catch (err) {
         console.error("Failed to fetch projects:", err);
       }

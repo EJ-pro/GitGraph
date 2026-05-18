@@ -20,15 +20,26 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # 환경 변수에서 OAuth 정보 가져오기
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback_secret_key_if_not_set")
+
+_jwt_secret = os.getenv("JWT_SECRET_KEY")
+if not _jwt_secret:
+    import sys
+    _env = os.getenv("ENV", "development")
+    if _env == "production":
+        sys.exit("FATAL: JWT_SECRET_KEY is not set. Server startup aborted.")
+    _jwt_secret = "fallback_secret_key_for_dev_only"
+JWT_SECRET_KEY = _jwt_secret
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
+
+GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost")
 
 # SSO 객체 초기화 (Redirect URI는 프론트엔드가 아니라 백엔드의 callback 주소입니다)
 github_sso = GithubSSO(
     client_id=GITHUB_CLIENT_ID,
     client_secret=GITHUB_CLIENT_SECRET,
-    redirect_uri="http://localhost:8000/auth/github/callback",
+    redirect_uri=GITHUB_REDIRECT_URI,
     allow_insecure_http=True, # 개발 환경(http) 허용
     scope=["user:email", "repo"] # 프라이빗 레포지토리 접근 권한 추가
 )
@@ -98,8 +109,7 @@ async def process_sso_login(sso_user, provider: str, db: Session, github_usernam
     )
     
     # 프론트엔드로 리다이렉트 (토큰 포함)
-    frontend_url = f"http://localhost/auth/callback?token={access_token}"
-    return RedirectResponse(url=frontend_url)
+    return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?token={access_token}")
 
 # 현재 사용자 정보 조회
 @router.get("/me")
@@ -319,7 +329,7 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
                 "client_id": GITHUB_CLIENT_ID,
                 "client_secret": GITHUB_CLIENT_SECRET,
                 "code": code,
-                "redirect_uri": "http://localhost:8000/auth/github/callback"
+                "redirect_uri": GITHUB_REDIRECT_URI
             },
             headers={"Accept": "application/json"}
         )
@@ -354,8 +364,6 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
     
     github_username = gh_user.login
         
-    return await process_sso_login(sso_user, "github", db, github_username=github_username, github_token=github_token)
-
     return await process_sso_login(sso_user, "github", db, github_username=github_username, github_token=github_token)
 
 

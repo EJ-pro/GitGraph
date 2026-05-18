@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { authService } from '../api';
 
 function AuthCallback() {
   const [searchParams] = useSearchParams();
@@ -12,10 +13,7 @@ function AuthCallback() {
       localStorage.setItem('token', token);
       
       // 사용자 정보를 가져와서 해당 유저의 메인으로 이동
-      fetch('http://localhost:8000/auth/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
+      authService.me()
       .then(user => {
         const username = user.github_username || user.name;
         navigate(`/${username}/analysis`);

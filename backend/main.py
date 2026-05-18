@@ -6,12 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import os
 import re
+import time
+import logging
 import networkx as nx
 from dotenv import load_dotenv
 import json
 import asyncio
 from queue import Queue
 from threading import Thread
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 from core.parser.github_fetcher import GitHubFetcher
 from core.parser.factory import get_parser_result
@@ -55,9 +60,13 @@ def contains_pii(text: str) -> bool:
 
 app = FastAPI(title="ChatFolio API")
 
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:5173")
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -112,7 +121,38 @@ async def get_global_stats(db: Session = Depends(get_db)):
         "ai_health": 99.9
     }
 
-engine_cache = {}
+_ENGINE_CACHE_TTL = int(os.getenv("ENGINE_CACHE_TTL_SECONDS", "3600"))
+
+class _TTLCache:
+    """session_id → engine 매핑. TTL 초과 항목은 접근 시 자동 제거."""
+    def __init__(self, ttl: int):
+        self._ttl = ttl
+        self._store: dict = {}   # {key: (value, inserted_at)}
+
+    def __contains__(self, key):
+        if key in self._store:
+            _, ts = self._store[key]
+            if time.monotonic() - ts < self._ttl:
+                return True
+            del self._store[key]
+        return False
+
+    def __setitem__(self, key, value):
+        self._store[key] = (value, time.monotonic())
+        self._evict()
+
+    def get(self, key, default=None):
+        return self._store[key][0] if key in self else default
+
+    def _evict(self):
+        now = time.monotonic()
+        expired = [k for k, (_, ts) in self._store.items() if now - ts >= self._ttl]
+        for k in expired:
+            del self._store[k]
+        if expired:
+            logger.info("engine_cache: evicted %d expired session(s)", len(expired))
+
+engine_cache = _TTLCache(_ENGINE_CACHE_TTL)
 
 @app.post("/analyze")
 async def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -137,7 +177,8 @@ async def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_
                         result = {"status": "success", "session_id": existing_session.id, "file_count": existing_project.file_count, "node_count": existing_project.node_count, "edge_count": existing_project.edge_count, "message": "Loaded existing analysis result."}
                         yield f"data: RESULT:{json.dumps(result)}\n\n"
                     return StreamingResponse(quick_return(), media_type="text/event-stream")
-        except: pass
+        except Exception as _e:
+            logger.warning("Failed to check latest commit, proceeding with full analysis: %s", _e)
 
     def generate():
         q = Queue()

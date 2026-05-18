@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Search, Github, Loader2, GitBranch, FileCode2, Share2, Sparkles, MessageSquare, BookOpen, Layers, CheckCircle2, Activity, Globe, Cpu, Zap, ArrowRight, Terminal, Users, Crown, Database, Trophy, Brain } from 'lucide-react';
 import UserProfile from '../components/UserProfile';
 import './Analysis.css';
-import { authService, projectService, dashboardService } from '../api';
+import { authService, projectService, dashboardService, BASE_URL } from '../api';
 
 function Analysis() {
   const { username } = useParams();
@@ -80,13 +80,8 @@ function Analysis() {
 
   const fetchProjectsData = async () => {
     try {
-      const response = await fetch('http://localhost:8000/projects', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-      }
+      const data = await projectService.getProjects();
+      setProjects(data);
     } catch (err) {
       console.error('Failed to fetch projects:', err);
     }
@@ -114,7 +109,7 @@ function Analysis() {
     setProgress(0);
 
     try {
-      const response = await fetch('http://localhost:8000/analyze', {
+      const response = await fetch(`${BASE_URL}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
