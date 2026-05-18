@@ -1,6 +1,44 @@
 import networkx as nx
+from networkx.readwrite import json_graph
 import os
+import logging
 from .resolvers.factory import ResolverFactory
+
+logger = logging.getLogger(__name__)
+
+
+def compress_graph(g: nx.DiGraph) -> dict:
+    """DiGraph → v2 compact format. PageRank pre-computed and stored."""
+    pr = {}
+    try:
+        pr = nx.pagerank(g, alpha=0.85)
+    except Exception as e:
+        logger.warning("[Graph] PageRank computation failed: %s", e)
+
+    return {
+        "v": 2,
+        "nodes": list(g.nodes()),
+        "edges": [[u, v] for u, v in g.edges()],
+        "pagerank": {k: round(v, 6) for k, v in pr.items()},
+    }
+
+
+def load_graph(data: dict | None) -> nx.DiGraph:
+    """Deserialize v2 compact format or legacy node_link_data format."""
+    if not data:
+        return nx.DiGraph()
+    if data.get("v") == 2:
+        g = nx.DiGraph()
+        g.add_nodes_from(data.get("nodes", []))
+        g.add_edges_from(data.get("edges", []))
+        return g
+    # Legacy: node_link_data format
+    try:
+        return json_graph.node_link_graph(data, directed=True, multigraph=False)
+    except Exception as e:
+        logger.warning("[Graph] Failed to deserialize legacy graph: %s", e)
+        return nx.DiGraph()
+
 
 class DependencyGraphBuilder:
     def __init__(self):
@@ -73,6 +111,14 @@ class DependencyGraphBuilder:
                         self.graph.add_edge(path, target_path, relationship="DEPENDS_ON")
 
         return self.graph
+
+    def get_pagerank(self) -> dict:
+        """PageRank scores keyed by file path. Returns {} on error."""
+        try:
+            return nx.pagerank(self.graph, alpha=0.85)
+        except Exception as e:
+            logger.warning("[Graph] PageRank computation failed: %s", e)
+            return {}
 
     def get_summary(self):
         return {

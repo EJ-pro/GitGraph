@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -28,6 +28,9 @@ class User(Base):
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (
+        Index("idx_projects_user_status", "user_id", "status"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True) # 기존 데이터 호환을 위해 nullable=True
@@ -53,6 +56,9 @@ class Project(Base):
 
 class ProjectFile(Base):
     __tablename__ = "project_files"
+    __table_args__ = (
+        Index("idx_project_files_importance", "project_id", "importance_score"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"))
@@ -91,6 +97,9 @@ class ProjectInsight(Base):
 
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
+    __table_args__ = (
+        Index("idx_chat_sessions_project", "project_id", "is_deleted", "created_at"),
+    )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
@@ -107,6 +116,9 @@ class ChatSession(Base):
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
+    __table_args__ = (
+        Index("idx_chat_messages_session", "session_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, ForeignKey("chat_sessions.id", ondelete="CASCADE"))
@@ -175,6 +187,11 @@ def init_db():
                     conn.execute(text("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS evaluation JSONB"))
                     # Drop unique constraint on generated_readmes if exists (for migration to multi-readme history)
                     conn.execute(text("ALTER TABLE generated_readmes DROP CONSTRAINT IF EXISTS generated_readmes_project_id_key"))
+                    # Composite indexes for hot query paths
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages (session_id, created_at)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions (project_id, is_deleted, created_at)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_projects_user_status ON projects (user_id, status)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_project_files_importance ON project_files (project_id, importance_score)"))
                     conn.commit()
                 except Exception as e:
                     print(f"Migration error: {e}")
