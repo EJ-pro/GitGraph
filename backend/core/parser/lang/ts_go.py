@@ -40,22 +40,15 @@ class GoParser(BaseTreeSitterParser):
             query = self.language.query(query_source)
             captures = query.captures(self.root_node)
 
-            # 메서드들을 임시로 저장할 딕셔너리 (struct_name: [methods])
             temp_methods = {}
-
             for node, capture_name in captures:
                 node_text = node.text.decode('utf8', errors='ignore')
-                
-                # --- 1. Package Name ---
+
                 if capture_name == "package_name":
                     if node_text == "main":
                         parsed_data["is_main_package"] = True
-
-                # --- 2. Imports ---
                 elif capture_name == "import_path":
                     parsed_data["imports"].append(node_text.strip('"'))
-
-                # --- 3. Structs ---
                 elif capture_name == "struct_node":
                     name_node = node.child_by_field_name("name")
                     if name_node:
@@ -64,32 +57,22 @@ class GoParser(BaseTreeSitterParser):
                         parsed_data["structs"][name] = {
                             "name": name,
                             "methods": temp_methods.get(name, []),
-                            "docstring": docstring
+                            "docstring": docstring,
                         }
-
-                # --- 4. Interfaces ---
                 elif capture_name == "interface_node":
                     name_node = node.child_by_field_name("name")
                     if name_node:
                         name = name_node.text.decode('utf8', errors='ignore')
                         methods = self._extract_interface_methods(node.child_by_field_name("type"))
                         docstring = self._extract_docstring(node.parent)
-                        parsed_data["interfaces"][name] = {
-                            "name": name,
-                            "methods": methods,
-                            "docstring": docstring
-                        }
-
-                # --- 5. Global Functions ---
+                        parsed_data["interfaces"][name] = {"name": name, "methods": methods, "docstring": docstring}
                 elif capture_name == "func_node":
                     name_node = node.child_by_field_name("name")
                     if name_node:
                         parsed_data["functions"].append({
                             "name": name_node.text.decode('utf8', errors='ignore'),
-                            "docstring": self._extract_docstring(node)
+                            "docstring": self._extract_docstring(node),
                         })
-
-                # --- 6. Methods (리시버 연결) ---
                 elif capture_name == "method_node":
                     receiver_type = self._get_receiver_base_type(node)
                     name_node = node.child_by_field_name("name")
@@ -98,17 +81,13 @@ class GoParser(BaseTreeSitterParser):
                         if receiver_type in parsed_data["structs"]:
                             parsed_data["structs"][receiver_type]["methods"].append(m_name)
                         else:
-                            # 구조체 정의보다 메서드가 먼저 나왔거나 다른 파일에 있을 가능성 대비
-                            if receiver_type not in temp_methods:
-                                temp_methods[receiver_type] = []
-                            temp_methods[receiver_type].append(m_name)
-
-                # --- 7. Goroutines ---
+                            temp_methods.setdefault(receiver_type, []).append(m_name)
                 elif capture_name == "go_stmt":
                     parsed_data["goroutine_count"] += 1
 
-        except Exception as e:
-            meta["error"] = f"Go 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            # tree-sitter 미설치 시 regex fallback
+            self._parse_regex(parsed_data)
 
         # 딕셔너리를 리스트로 변환하여 최종 JSON 규격화
         parsed_data["structs"] = list(parsed_data["structs"].values())
@@ -116,6 +95,34 @@ class GoParser(BaseTreeSitterParser):
         
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        """tree-sitter 없을 때 regex로 핵심 정보만 추출."""
+        import re
+        c = self.content
+
+        if re.search(r"^package\s+main\b", c, re.MULTILINE):
+            parsed_data["is_main_package"] = True
+
+        # import "x" 또는 import (\n"x"\n)
+        for m in re.finditer(r'"([^"]+)"', c):
+            val = m.group(1)
+            if "/" in val or "." not in val:
+                parsed_data["imports"].append(val)
+
+        for m in re.finditer(r"^type\s+(\w+)\s+struct\b", c, re.MULTILINE):
+            name = m.group(1)
+            parsed_data["structs"][name] = {"name": name, "methods": [], "docstring": ""}
+
+        for m in re.finditer(r"^type\s+(\w+)\s+interface\b", c, re.MULTILINE):
+            name = m.group(1)
+            parsed_data["interfaces"][name] = {"name": name, "methods": [], "docstring": ""}
+
+        # func FuncName( 또는 func (recv *Type) MethodName(
+        for m in re.finditer(r"^func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(", c, re.MULTILINE):
+            parsed_data["functions"].append({"name": m.group(1), "docstring": ""})
+
+        parsed_data["goroutine_count"] = len(re.findall(r"\bgo\s+\w+\s*\(", c))
 
     def _get_receiver_base_type(self, method_node) -> str:
         """

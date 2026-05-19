@@ -24,6 +24,8 @@ from core.parser.factory import get_parser_result
 from core.graph.graph_builder import DependencyGraphBuilder, compress_graph, load_graph
 from core.rag.engine import ChatFolioEngine
 from core.rag.shared import warmup
+from core.cache.redis_client import cache_get, cache_set, cache_delete_pattern
+from core.cache.rate_limiter import check_rate_limit
 from database.models import init_db, Project, ProjectFile, ChatSession, ChatMessage, User, Inquiry, ProjectInsight, TokenUsage, GeneratedReadme
 from database.database import get_db, SessionLocal
 from api.auth import router as auth_router, get_current_user
@@ -127,12 +129,16 @@ async def update_user_profile(request: ProfileUpdateRequest, db: Session = Depen
 
 @app.get("/stats/global")
 async def get_global_stats(db: Session = Depends(get_db)):
+    cached = cache_get("stats:global")
+    if cached:
+        return cached
+
     total_projects = db.query(Project).count()
     total_users = db.query(User).count()
     total_lines = db.query(func.sum(ProjectFile.line_count)).scalar() or 0
     total_nodes = db.query(func.sum(Project.node_count)).scalar() or 0
     total_answers = db.query(ChatMessage).filter(ChatMessage.role == "assistant").count()
-    return {
+    result = {
         "total_projects": total_projects,
         "total_users": total_users,
         "total_lines": total_lines,
@@ -141,6 +147,8 @@ async def get_global_stats(db: Session = Depends(get_db)):
         "avg_analysis_time": "42s",
         "ai_health": 99.9,
     }
+    cache_set("stats:global", result, ttl=60)
+    return result
 
 # ──────────────────────────────────────────
 # ENGINE CACHE
@@ -187,6 +195,14 @@ engine_cache = _TTLCache(_ENGINE_CACHE_TTL)
 
 @app.post("/analyze")
 async def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    allowed, retry_after = check_rate_limit(current_user.id, "analyze", tier=current_user.tier)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"분석 요청이 너무 많습니다. {retry_after}초 후 다시 시도해주세요.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     if request.provider == "groq" and request.model_name == "llama-3.3-70b-versatile" and current_user.tier != "pro":
         raise HTTPException(status_code=402, detail="Standard AI (Fast) 모델은 Pro 등급 전용입니다.")
 
@@ -374,6 +390,10 @@ async def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_
                 )
                 engine_cache[chat_session.id] = engine
 
+                # Invalidate stale caches
+                cache_delete_pattern("stats:global")
+                cache_delete_pattern(f"projects:user:{current_user.id}")
+
                 q.put(f"RESULT:{json.dumps({'status': 'success', 'session_id': chat_session.id, 'file_count': project.file_count, 'message': 'Analysis complete'})}")
                 q.put(None)
             except Exception as e:
@@ -398,6 +418,14 @@ async def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_
 
 @app.post("/chat")
 async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    allowed, retry_after = check_rate_limit(current_user.id, "chat", tier=current_user.tier)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"요청이 너무 많습니다. {retry_after}초 후 다시 시도해주세요.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     session_id = request.session_id
     chat_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not chat_session:
@@ -535,8 +563,13 @@ async def get_chat_history(session_id: str, db: Session = Depends(get_db), curre
 
 @app.get("/projects")
 async def get_user_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cache_key = f"projects:user:{current_user.id}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
     projects = db.query(Project).filter(Project.user_id == current_user.id).order_by(Project.created_at.desc()).all()
-    return [{
+    result = [{
         "id": p.id,
         "repo_url": p.repo_url,
         "file_count": p.file_count,
@@ -548,6 +581,8 @@ async def get_user_projects(db: Session = Depends(get_db), current_user: User = 
             else None
         ),
     } for p in projects]
+    cache_set(cache_key, result, ttl=30)
+    return result
 
 # ──────────────────────────────────────────
 # GENERATE — NETWORK / ARCHITECTURE / PIPELINE / README
@@ -722,4 +757,5 @@ async def delete_chat_session(session_id: str, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=404, detail="Session not found")
     session.is_deleted = 1
     db.commit()
+    cache_delete_pattern(f"projects:user:{current_user.id}")
     return {"status": "success", "message": "Session deleted"}

@@ -27,9 +27,10 @@ class PythonParser(BaseTreeSitterParser):
                         import_text = f"import {alias.name}"
                         parsed_data["imports"].append(import_text)
                 elif isinstance(node, ast.ImportFrom):
+                    dots = "." * (node.level or 0)  # 상대 임포트 점 보존
                     module = node.module or ""
                     names = ", ".join([a.name for a in node.names])
-                    import_text = f"from {module} import {names}"
+                    import_text = f"from {dots}{module} import {names}"
                     parsed_data["imports"].append(import_text)
 
                 # --- 2. Classes ---

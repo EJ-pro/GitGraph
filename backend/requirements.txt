@@ -22,3 +22,10 @@ PyJWT>=2.8.0
 langgraph
 chromadb
 rank_bm25
+
+# Redis
+redis>=5.0.0
+hiredis>=2.3.0
+
+# Supabase
+supabase>=2.0.0

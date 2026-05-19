@@ -84,11 +84,37 @@ class RustParser(BaseTreeSitterParser):
                             "docstring": self._extract_docstring(node.parent)
                         })
 
-        except Exception as e:
-            meta["error"] = f"Rust 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            # tree-sitter 미설치 시 regex fallback
+            self._parse_regex(parsed_data)
 
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        """tree-sitter 없을 때 regex로 핵심 정보만 추출."""
+        import re
+        c = self.content
+
+        # use std::collections::HashMap;
+        for m in re.finditer(r"^use\s+([^;]+);", c, re.MULTILINE):
+            parsed_data["uses"].append(m.group(1).strip())
+
+        # mod my_module;
+        for m in re.finditer(r"^mod\s+(\w+)\s*;", c, re.MULTILINE):
+            parsed_data["mods"].append({"name": m.group(1), "docstring": ""})
+
+        # struct / enum / trait
+        for m in re.finditer(r"^(?:pub\s+)?struct\s+(\w+)", c, re.MULTILINE):
+            parsed_data["structs"].append({"name": m.group(1), "type": "struct", "methods": [], "docstring": ""})
+        for m in re.finditer(r"^(?:pub\s+)?enum\s+(\w+)", c, re.MULTILINE):
+            parsed_data["enums"].append({"name": m.group(1), "type": "enum", "methods": [], "docstring": ""})
+        for m in re.finditer(r"^(?:pub\s+)?trait\s+(\w+)", c, re.MULTILINE):
+            parsed_data["traits"].append({"name": m.group(1), "type": "trait", "methods": [], "docstring": ""})
+
+        # fn function_name(
+        for m in re.finditer(r"^(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\(", c, re.MULTILINE):
+            parsed_data["functions"].append({"name": m.group(1), "docstring": ""})
 
     def _process_rust_node(self, node, node_type: str) -> Dict[str, Any]:
         """Rust의 구조체, 열거형, 트레이트 내부를 분석합니다."""
