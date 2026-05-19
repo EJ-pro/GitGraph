@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ..tree_sitter_base import BaseTreeSitterParser
 
 class PhpParser(BaseTreeSitterParser):
@@ -73,11 +73,43 @@ class PhpParser(BaseTreeSitterParser):
                 if "wp_" in node_text or "add_action" in node_text:
                     parsed_data["is_wordpress"] = True
 
-        except Exception as e:
-            meta["error"] = f"PHP 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            self._parse_regex(parsed_data)
 
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        import re
+        c = self.content
+
+        m = re.search(r'^namespace\s+([\w\\]+)\s*;', c, re.MULTILINE)
+        if m:
+            parsed_data["namespace"] = m.group(1)
+
+        for m in re.finditer(r'^use\s+([\w\\]+)\s*;', c, re.MULTILINE):
+            name = m.group(1)
+            parsed_data["uses"].append(name)
+            if "Illuminate\\" in name:
+                parsed_data["is_laravel"] = True
+
+        for m in re.finditer(r'^(?:abstract\s+|final\s+)?class\s+(\w+)', c, re.MULTILINE):
+            parsed_data["classes"].append({
+                "name": m.group(1), "type": "class",
+                "inherits": [], "methods": [], "docstring": ""
+            })
+
+        for m in re.finditer(r'^interface\s+(\w+)', c, re.MULTILINE):
+            parsed_data["classes"].append({
+                "name": m.group(1), "type": "interface",
+                "inherits": [], "methods": [], "docstring": ""
+            })
+
+        for m in re.finditer(r'^function\s+(\w+)\s*\(', c, re.MULTILINE):
+            parsed_data["functions"].append({"name": m.group(1), "docstring": ""})
+
+        if re.search(r'\bwp_\w+\s*\(|\badd_action\s*\(', c):
+            parsed_data["is_wordpress"] = True
 
     def _process_php_node(self, node, node_type: str) -> Dict[str, Any]:
         """PHP 클래스/인터페이스/트레이트 내부 구조를 분석합니다."""

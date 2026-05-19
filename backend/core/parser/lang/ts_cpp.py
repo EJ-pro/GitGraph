@@ -92,12 +92,31 @@ class CppParser(BaseTreeSitterParser):
                             "docstring": docstring
                         })
 
-        except Exception as e:
-            meta["error"] = f"C++ 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            self._parse_regex(parsed_data)
 
-        # 파싱된 데이터를 메타데이터에 병합
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        import re
+        c = self.content
+
+        for m in re.finditer(r'#include\s*([<"][^>"]+[>"])', c):
+            raw = m.group(1)
+            parsed_data["imports"].append({
+                "target": raw.strip('<>"'),
+                "alias": None,
+                "type": "system" if raw.startswith("<") else "local",
+            })
+        for m in re.finditer(r"#define\s+(\w+)\s*(.*)", c):
+            parsed_data["macros"].append({"name": m.group(1), "value": m.group(2).strip()})
+        for m in re.finditer(r"(?:class|struct)\s+(\w+)", c):
+            parsed_data["classes"].append({"name": m.group(1), "type": "class", "methods": [], "docstring": ""})
+        for m in re.finditer(r"^[\w:*&<> ]+\s+(\w+)\s*\([^)]*\)\s*(?:const\s*)?\{", c, re.MULTILINE):
+            name = m.group(1)
+            if name not in ("if", "for", "while", "switch"):
+                parsed_data["functions"].append({"name": name, "docstring": ""})
 
     def _extract_docstring(self, node) -> str:
         """

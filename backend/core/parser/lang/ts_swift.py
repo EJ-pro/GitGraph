@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ..tree_sitter_base import BaseTreeSitterParser
 
 class SwiftParser(BaseTreeSitterParser):
@@ -59,11 +59,49 @@ class SwiftParser(BaseTreeSitterParser):
                     if node_text == "View":
                         parsed_data["is_swiftui"] = True
 
-        except Exception as e:
-            meta["error"] = f"Swift 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            self._parse_regex(parsed_data)
 
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        import re
+        c = self.content
+
+        for m in re.finditer(r'^import\s+(\w+)', c, re.MULTILINE):
+            name = m.group(1)
+            if name not in parsed_data["imports"]:
+                parsed_data["imports"].append(name)
+            if name == "SwiftUI":
+                parsed_data["is_swiftui"] = True
+
+        for m in re.finditer(r'^(?:\w+\s+)*protocol\s+(\w+)', c, re.MULTILINE):
+            parsed_data["protocols"].append({
+                "name": m.group(1), "type": "protocol",
+                "inherits": [], "methods": [], "docstring": ""
+            })
+
+        for m in re.finditer(r'^(?:\w+\s+)*class\s+(\w+)', c, re.MULTILINE):
+            parsed_data["classes"].append({
+                "name": m.group(1), "type": "class",
+                "inherits": [], "methods": [], "docstring": ""
+            })
+
+        for m in re.finditer(r'^(?:\w+\s+)*struct\s+(\w+)', c, re.MULTILINE):
+            parsed_data["structs"].append({
+                "name": m.group(1), "type": "struct",
+                "inherits": [], "methods": [], "docstring": ""
+            })
+
+        for m in re.finditer(r'^(?:\w+\s+)*enum\s+(\w+)', c, re.MULTILINE):
+            parsed_data["enums"].append({
+                "name": m.group(1), "type": "enum",
+                "inherits": [], "methods": [], "docstring": ""
+            })
+
+        if "SwiftUI" in parsed_data["imports"] and re.search(r'\bView\b', c):
+            parsed_data["is_swiftui"] = True
 
     def _process_swift_node(self, node, node_type: str) -> Dict[str, Any]:
         """Swift의 타입(Class, Struct 등) 내부 구조를 분석합니다."""

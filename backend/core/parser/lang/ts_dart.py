@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ..tree_sitter_base import BaseTreeSitterParser
 
 class DartParser(BaseTreeSitterParser):
@@ -58,11 +58,39 @@ class DartParser(BaseTreeSitterParser):
                     if "build" in class_info["methods"]:
                         parsed_data["has_build_method"] = True
 
-        except Exception as e:
-            meta["error"] = f"Dart 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            self._parse_regex(parsed_data)
 
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        import re
+        c = self.content
+
+        for m in re.finditer(r"^import\s+['\"]([^'\"]+)['\"]", c, re.MULTILINE):
+            uri = m.group(1)
+            parsed_data["imports"].append(uri)
+            if uri.startswith("package:flutter/"):
+                parsed_data["is_flutter_script"] = True
+
+        for m in re.finditer(r'^class\s+(\w+)(?:\s+extends\s+(\w+))?', c, re.MULTILINE):
+            name, base = m.group(1), m.group(2) or ""
+            widget_type = "none"
+            if base == "StatelessWidget":
+                widget_type = "stateless"
+                parsed_data["is_flutter_script"] = True
+            elif base == "StatefulWidget":
+                widget_type = "stateful"
+                parsed_data["is_flutter_script"] = True
+            parsed_data["classes"].append({
+                "name": name, "inherits": base, "mixins": [],
+                "interfaces": [], "widget_type": widget_type,
+                "methods": [], "docstring": ""
+            })
+
+        if re.search(r'\bbuild\s*\(', c):
+            parsed_data["has_build_method"] = True
 
     def _process_dart_class(self, node) -> Dict[str, Any]:
         """

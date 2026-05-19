@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ..tree_sitter_base import BaseTreeSitterParser
 
 class RubyParser(BaseTreeSitterParser):
@@ -92,11 +92,36 @@ class RubyParser(BaseTreeSitterParser):
                                 "docstring": self._extract_docstring(node)
                             })
 
-        except Exception as e:
-            meta["error"] = f"Ruby 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            self._parse_regex(parsed_data)
 
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        import re
+        c = self.content
+
+        for m in re.finditer(r"^require(?:_relative)?\s+['\"]([^'\"]+)['\"]", c, re.MULTILINE):
+            path = m.group(1)
+            parsed_data["requires"].append(path)
+            if "rails" in path or "active_record" in path:
+                parsed_data["is_rails"] = True
+
+        for m in re.finditer(r'^module\s+(\w+)', c, re.MULTILINE):
+            parsed_data["modules"].append({"name": m.group(1), "docstring": ""})
+
+        for m in re.finditer(r'^class\s+(\w+)(?:\s*<\s*(\S+))?', c, re.MULTILINE):
+            name, base = m.group(1), m.group(2) or ""
+            if "ApplicationRecord" in base or "ActiveRecord" in base:
+                parsed_data["is_rails"] = True
+            parsed_data["classes"].append({
+                "name": name, "inherits": [base] if base else [],
+                "methods": [], "docstring": ""
+            })
+
+        for m in re.finditer(r'^def\s+(\w+)', c, re.MULTILINE):
+            parsed_data["methods"].append({"name": m.group(1), "docstring": ""})
 
     def _process_ruby_class(self, node) -> Dict[str, Any]:
         """Ruby 클래스 내부의 상속 관계와 메서드를 분석합니다."""

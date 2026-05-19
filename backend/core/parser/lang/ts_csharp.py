@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from ..tree_sitter_base import BaseTreeSitterParser
 
 class CSharpParser(BaseTreeSitterParser):
@@ -64,11 +64,36 @@ class CSharpParser(BaseTreeSitterParser):
                 elif capture_name == "linq_expr":
                     parsed_data["linq_query_count"] += 1
 
-        except Exception as e:
-            meta["error"] = f"C# 파싱 중 오류 발생: {str(e)}"
+        except Exception:
+            self._parse_regex(parsed_data)
 
         meta["metadata_json"]["parsed"] = parsed_data
         return meta
+
+    def _parse_regex(self, parsed_data: dict) -> None:
+        import re
+        c = self.content
+
+        for m in re.finditer(r'^using\s+([\w.]+)\s*;', c, re.MULTILINE):
+            name = m.group(1)
+            parsed_data["usings"].append(name)
+            if "UnityEngine" in name:
+                parsed_data["is_unity_script"] = True
+
+        for m in re.finditer(r'^(?:[\w\s]*\s)?namespace\s+([\w.]+)', c, re.MULTILINE):
+            parsed_data["namespaces"].append(m.group(1))
+
+        for m in re.finditer(r'^(?:[\w\s]*\s)?class\s+(\w+)', c, re.MULTILINE):
+            name = m.group(1)
+            line_ctx = c[m.start():m.start() + 200]
+            parsed_data["classes"].append({"name": name, "inherits": [], "methods": [], "docstring": ""})
+            if "MonoBehaviour" in line_ctx:
+                parsed_data["is_unity_script"] = True
+
+        for m in re.finditer(r'^(?:[\w\s]*\s)?interface\s+(\w+)', c, re.MULTILINE):
+            parsed_data["interfaces"].append({"name": m.group(1), "inherits": [], "methods": [], "docstring": ""})
+
+        parsed_data["linq_query_count"] = len(re.findall(r'\bfrom\s+\w+\s+in\s+', c))
 
     def _process_class_or_interface(self, node, node_type: str) -> Dict[str, Any]:
         """
