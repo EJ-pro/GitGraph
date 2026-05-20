@@ -5,6 +5,10 @@ from langchain_groq import ChatGroq
 import json
 import traceback
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ReadmeState(TypedDict, total=False):
     project_context: str
@@ -27,7 +31,6 @@ class ReadmeAgent:
         self.provider = provider
         self.model_name = model_name
         self.workflow = self._create_workflow()
-        self.log_path = "/app/.backend_error.log" if os.path.exists("/app") else ".backend_error.log"
 
     def _create_workflow(self):
         workflow = StateGraph(ReadmeState)
@@ -130,9 +133,7 @@ class ReadmeAgent:
                 "usage": current_usage
             }
         except Exception as e:
-            print(f"❌ [Analyzer] 오류 발생: {e}")
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(f"--- [Analyzer Error] ---\n{str(e)}\n{traceback.format_exc()}\n")
+            logger.exception("❌ [Analyzer] 오류 발생")
             return {"archetype": "General", "analysis_report": "분석 중 오류 발생", "iteration_count": 0}
 
     def router_node(self, state: ReadmeState) -> Dict[str, Any]:
@@ -183,9 +184,7 @@ class ReadmeAgent:
 
             return {"draft": response.content, "iteration_count": curr_iter + 1, "usage": current_usage}
         except Exception as e:
-            print(f"❌ [Writer] 오류 발생: {e}")
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(f"--- [Writer Error] ---\n{str(e)}\n{traceback.format_exc()}\n")
+            logger.exception("❌ [Writer] 오류 발생")
             
             # Fallback README Generation (Simple)
             fallback_readme = f"# {state.get('archetype', 'Project')} README\n\nAI가 분석 중 오류가 발생하여 기본 정보를 출력합니다.\n\n## 분석 요약\n{state.get('analysis_report', '분석 정보가 없습니다.')}\n\n## 기술 스택\n{state.get('archetype', 'General')}"
@@ -232,9 +231,7 @@ class ReadmeAgent:
                 "usage": current_usage
             }
         except Exception as e:
-            print(f"❌ [Reviewer] 오류 발생: {e}")
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(f"--- [Reviewer Error] ---\n{str(e)}\n{traceback.format_exc()}\n")
+            logger.exception("❌ [Reviewer] 오류 발생")
             return {"decision": "APPROVE", "final_readme": state.get('draft', '')}
 
     def should_continue(self, state: ReadmeState):
@@ -266,7 +263,5 @@ class ReadmeAgent:
                 "usage": result.get("usage", {})
             }
         except Exception as e:
-            print(f"❌ [ReadmeAgent.run] Critical error: {e}")
-            with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(f"--- [Critical Run Error] ---\n{str(e)}\n{traceback.format_exc()}\n")
+            logger.exception("❌ [ReadmeAgent.run] Critical error")
             return f"An error occurred while running the agent: {str(e)}"

@@ -7,21 +7,40 @@ logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
+import time
+
 _client: redis.Redis | None = None
+_redis_disabled = False
+_last_connect_time = 0.0
+_RECONNECT_COOLDOWN = 30.0  # 재연결 시도 쿨다운 (30초)
 
 
 def get_redis() -> redis.Redis | None:
-    """Singleton Redis client. Returns None if Redis is unreachable (fail-open)."""
-    global _client
+    """Singleton Redis client with a circuit breaker. Returns None if Redis is unreachable."""
+    global _client, _redis_disabled, _last_connect_time
     if _client is not None:
         return _client
+
+    now = time.monotonic()
+    if _redis_disabled and (now - _last_connect_time < _RECONNECT_COOLDOWN):
+        return None
+
+    _last_connect_time = now
     try:
-        _client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+        # 커넥션 풀을 확장하여 50명 동시 요청 시 고갈되지 않도록 설정합니다.
+        _client = redis.from_url(
+            REDIS_URL, 
+            decode_responses=True, 
+            socket_connect_timeout=2,
+            max_connections=100
+        )
         _client.ping()
+        _redis_disabled = False
         logger.info("[Redis] Connected to %s", REDIS_URL)
     except Exception as e:
-        logger.warning("[Redis] Unavailable — caching disabled: %s", e)
+        logger.warning("[Redis] Connection failed — caching disabled: %s", e)
         _client = None
+        _redis_disabled = True
     return _client
 
 

@@ -13,7 +13,13 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
     "postgresql://user:password@db:5432/chatfolio"
 )
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=20,          # 기본 커넥션 풀 크기
+    max_overflow=30,       # 최대 초과 생성 커넥션 (총합 최대 50개 커넥션 지원)
+    pool_timeout=60,       # 커넥션 획득 대기 최대 시간 (초)
+    pool_recycle=1800      # 커넥션 자동 재연결 주기 (초)
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

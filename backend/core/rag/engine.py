@@ -16,6 +16,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import threading
+
+_chroma_locks = {}
+_chroma_lock_mutex = threading.Lock()
+
+def _get_project_lock(project_id) -> threading.Lock:
+    if not project_id:
+        return threading.Lock()
+    with _chroma_lock_mutex:
+        if project_id not in _chroma_locks:
+            _chroma_locks[project_id] = threading.Lock()
+        return _chroma_locks[project_id]
+
+
 _MODEL_CONTEXT_CHARS = {
     "llama-3.3-70b-versatile": 16000,
     "llama-3.1-70b-versatile": 14000,
@@ -119,46 +133,48 @@ class ChatFolioEngine:
     # ──────────────────────────────────────────
 
     def _prepare_vector_db(self):
-        persist_dir = f"storage/vectors/{self.project_id}" if self.project_id else None
+        project_lock = _get_project_lock(self.project_id)
+        with project_lock:
+            persist_dir = f"storage/vectors/{self.project_id}" if self.project_id else None
 
-        if not self.force_reload and persist_dir and os.path.exists(persist_dir) and os.listdir(persist_dir):
-            logger.info("[Chroma] Loading existing vector DB from %s", persist_dir)
+            if not self.force_reload and persist_dir and os.path.exists(persist_dir) and os.listdir(persist_dir):
+                logger.info("[Chroma] Loading existing vector DB from %s", persist_dir)
+                try:
+                    return Chroma(persist_directory=persist_dir, embedding_function=self.embeddings)
+                except Exception as e:
+                    logger.warning("[Chroma] Failed to load existing DB: %s. Recreating...", e)
+
+            if persist_dir and os.path.exists(persist_dir):
+                shutil.rmtree(persist_dir, ignore_errors=True)
+            if persist_dir:
+                os.makedirs(persist_dir, exist_ok=True)
+
+            logger.info("[Chroma] Creating new vector DB...")
+            docs_raw = []
+            items = self.files_data.items() if isinstance(self.files_data, dict) else self.files_data
+            for path, content in items:
+                if content and len(content.strip()) >= 10:
+                    docs_raw.extend(self._chunk_file(path, content))
+
+            if not docs_raw:
+                return Chroma.from_texts(
+                    [" "], self.embeddings,
+                    metadatas=[{"path": "none"}],
+                    persist_directory=persist_dir,
+                )
+
+            texts = [d["page_content"] for d in docs_raw]
+            metadatas = [d["metadata"] for d in docs_raw]
             try:
-                return Chroma(persist_directory=persist_dir, embedding_function=self.embeddings)
+                vdb = Chroma.from_texts(
+                    texts=texts, embedding=self.embeddings,
+                    metadatas=metadatas, persist_directory=persist_dir,
+                )
+                logger.info("[Chroma] Created with %d chunks.", len(texts))
+                return vdb
             except Exception as e:
-                logger.warning("[Chroma] Failed to load existing DB: %s. Recreating...", e)
-
-        if persist_dir and os.path.exists(persist_dir):
-            shutil.rmtree(persist_dir, ignore_errors=True)
-        if persist_dir:
-            os.makedirs(persist_dir, exist_ok=True)
-
-        logger.info("[Chroma] Creating new vector DB...")
-        docs_raw = []
-        items = self.files_data.items() if isinstance(self.files_data, dict) else self.files_data
-        for path, content in items:
-            if content and len(content.strip()) >= 10:
-                docs_raw.extend(self._chunk_file(path, content))
-
-        if not docs_raw:
-            return Chroma.from_texts(
-                [" "], self.embeddings,
-                metadatas=[{"path": "none"}],
-                persist_directory=persist_dir,
-            )
-
-        texts = [d["page_content"] for d in docs_raw]
-        metadatas = [d["metadata"] for d in docs_raw]
-        try:
-            vdb = Chroma.from_texts(
-                texts=texts, embedding=self.embeddings,
-                metadatas=metadatas, persist_directory=persist_dir,
-            )
-            logger.info("[Chroma] Created with %d chunks.", len(texts))
-            return vdb
-        except Exception as e:
-            logger.error("[Chroma] Creation failed: %s", e)
-            return Chroma.from_texts(texts, self.embeddings, metadatas=metadatas)
+                logger.error("[Chroma] Creation failed: %s", e)
+                return Chroma.from_texts(texts, self.embeddings, metadatas=metadatas)
 
     # ──────────────────────────────────────────
     # BM25 — lightweight: 1 doc per file
