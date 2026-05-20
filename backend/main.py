@@ -77,7 +77,7 @@ def _build_files_metadata(project_files) -> dict:
     return result
 
 
-app = FastAPI(title="ChatFolio API", lifespan=lifespan)
+app = FastAPI(title="GitGraph API", lifespan=lifespan)
 
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:5173")
 _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
@@ -702,6 +702,36 @@ async def generate_readme(request: ReadmeRequest, db: Session = Depends(get_db),
     db.add(new_readme)
     db.commit()
     return {"readme_content": readme_content, "status": "generated"}
+
+
+@app.get("/generate/obsidian-vault")
+async def generate_obsidian_vault(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    chat_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not chat_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    project = chat_session.project
+    
+    # 1. Load the graph
+    graph = load_graph(project.graph_data)
+    
+    # 2. Get all project files
+    files = project.files
+    
+    # 3. Call obsidian exporter logic
+    from core.graph.obsidian_exporter import export_to_obsidian
+    zip_buffer = export_to_obsidian(project, files, graph)
+    
+    # 4. Stream ZIP file back to client
+    repo_name = project.repo_url.split('/')[-1] if project.repo_url else "Repository"
+    headers = {
+        'Content-Disposition': f'attachment; filename="{repo_name}_obsidian_vault.zip"',
+        'Access-Control-Expose-Headers': 'Content-Disposition'
+    }
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers=headers
+    )
 
 # ──────────────────────────────────────────
 # SESSION MANAGEMENT

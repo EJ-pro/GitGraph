@@ -147,7 +147,7 @@ function MyPage() {
       <header className="w-full px-8 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-md border-b border-white/5 bg-slate-950/50">
         <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="font-bold">ChatFolio</span>
+          <span className="font-bold">GitGraph</span>
         </button>
         <UserProfile />
       </header>
@@ -473,8 +473,8 @@ function MyPage() {
           <button onClick={() => navigate('/faq')} className="hover:text-white transition-all">Support (FAQ)</button>
         </div>
         <div className="space-y-2 opacity-60">
-          <p className="font-bold">CEO : Jaehee Lee | TEL : 02-529-4237 | Mail : ChatFolio@chatfolio.com</p>
-          <p className="text-[10px]">&copy; 2026 ChatFolio. Designed for the Next Generation of Developers.</p>
+          <p className="font-bold">CEO : Jaehee Lee | TEL : 02-529-4237 | Mail : GitGraph@gitgraph.com</p>
+          <p className="text-[10px]">&copy; 2026 GitGraph. Designed for the Next Generation of Developers.</p>
         </div>
       </footer>
     </div>

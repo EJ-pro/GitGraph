@@ -170,6 +170,7 @@ function DocsTab() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+
   return (
     <div className="flex h-full bg-slate-950 overflow-hidden">
       {/* Initial Loading Overlay */}

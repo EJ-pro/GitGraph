@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { MessageSquare, FileText, Target, Github, Share2, GitBranch, ChevronDown, PanelLeftClose, PanelLeft, Brain } from 'lucide-react';
+import { MessageSquare, FileText, Target, Github, Share2, GitBranch, ChevronDown, PanelLeftClose, PanelLeft, Brain, Network } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import UserProfile from './UserProfile';
 import { projectService } from '../api';
@@ -61,6 +61,7 @@ function DashboardLayout() {
     { path: `/${username}/dashboard/architecture`, icon: Share2, label: 'Architecture' },
     { path: `/${username}/dashboard/pipeline`, icon: GitBranch, label: 'Pipeline' },
     { path: `/${username}/dashboard/docs`, icon: FileText, label: 'Documentation' },
+    { path: `/${username}/dashboard/obsidian`, icon: Network, label: 'Obsidian Vault' },
     { path: `/${username}/dashboard/interview`, icon: Target, label: 'Mock Interview' },
   ];
 
@@ -76,7 +77,7 @@ function DashboardLayout() {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
             <Brain className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-xl font-black text-white tracking-tighter">ChatFolio</h1>
+          <h1 className="text-xl font-black text-white tracking-tighter">GitGraph</h1>
           </div>
           <button 
             onClick={() => setIsSidebarCollapsed(true)}

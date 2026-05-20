@@ -234,7 +234,7 @@ function Login() {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
             <Brain className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white font-extrabold text-xl tracking-tight">ChatFolio</span>
+          <span className="text-white font-extrabold text-xl tracking-tight">GitGraph</span>
           <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-[9px] font-bold uppercase tracking-widest">Beta</span>
         </div>
 
@@ -264,7 +264,7 @@ function Login() {
                 <div className="w-2 h-2 rounded-full bg-red-500" />
                 <div className="w-2 h-2 rounded-full bg-yellow-500" />
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-[10px] text-slate-500 ml-2 font-mono">analyze.chatfolio.app</span>
+                <span className="text-[10px] text-slate-500 ml-2 font-mono">analyze.gitgraph.app</span>
               </div>
               <p className="text-[10px] text-slate-500 mb-2 uppercase tracking-widest font-bold">Repository URL</p>
               <TypingDemo />
@@ -341,7 +341,7 @@ function Login() {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
               <Brain className="w-5 h-5 text-white" />
             </div>
-            <span className="text-white font-extrabold text-xl tracking-tight">ChatFolio</span>
+            <span className="text-white font-extrabold text-xl tracking-tight">GitGraph</span>
           </div>
 
           {/* Heading */}
@@ -404,8 +404,8 @@ function Login() {
           {/* Footer */}
           <div className="text-center text-[10px] text-slate-600 space-y-0.5">
             <p>CEO: Jaehee Lee &nbsp;|&nbsp; 02-529-4237</p>
-            <p>ChatFolio@chatfolio.com</p>
-            <p className="pt-1">&copy; 2026 ChatFolio. All rights reserved.</p>
+            <p>GitGraph@gitgraph.com</p>
+            <p className="pt-1">&copy; 2026 GitGraph. All rights reserved.</p>
           </div>
         </div>
       </div>

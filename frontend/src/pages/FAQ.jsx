@@ -19,8 +19,8 @@ function FAQ() {
   const faqs = [
     {
       id: 1,
-      question: "What is ChatFolio?",
-      answer: "ChatFolio is a portfolio optimization tool for developers that analyzes GitHub repositories to visualize dependency graphs, allowing for in-depth code analysis through AI-powered conversations."
+      question: "What is GitGraph?",
+      answer: "GitGraph is a portfolio optimization tool for developers that analyzes GitHub repositories to visualize dependency graphs, allowing for in-depth code analysis through AI-powered conversations."
     },
     {
       id: 2,
@@ -77,7 +77,7 @@ function FAQ() {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
             <Brain className="w-5 h-5 text-white" />
           </div>
-          <span className="font-black tracking-tighter text-xl">ChatFolio</span>
+          <span className="font-black tracking-tighter text-xl">GitGraph</span>
         </div>
         <UserProfile />
       </header>
@@ -182,17 +182,17 @@ function FAQ() {
             </div>
             <div className="flex items-center gap-2">
               <Mail className="w-4 h-4 text-purple-400" />
-              <span>Mail : ChatFolio@chatfolio.com</span>
+              <span>Mail : GitGraph@gitgraph.com</span>
             </div>
           </div>
           <div className="text-[10px] uppercase font-black tracking-widest opacity-30">
-            Powered by ChatFolio AI
+            Powered by GitGraph AI
           </div>
         </div>
       </main>
 
       <footer className="w-full text-center p-4 text-slate-600 text-sm border-t border-white/5">
-        &copy; 2026 ChatFolio. All rights reserved.
+        &copy; 2026 GitGraph. All rights reserved.
       </footer>
     </div>
   );

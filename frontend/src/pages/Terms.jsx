@@ -27,7 +27,7 @@ function Terms() {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
             <Brain className="w-5 h-5 text-white" />
           </div>
-          <span className="font-black tracking-tighter text-xl">ChatFolio</span>
+          <span className="font-black tracking-tighter text-xl">GitGraph</span>
         </div>
         <UserProfile />
       </header>
@@ -50,7 +50,7 @@ function Terms() {
                 Article 1 (Purpose)
               </h2>
               <p>
-                These terms aim to define the conditions and procedures for using all services provided by ChatFolio (hereinafter referred to as the "Service"), as well as the rights, obligations, and responsibilities of the users and service operators.
+                 These terms aim to define the conditions and procedures for using all services provided by GitGraph (hereinafter referred to as the "Service"), as well as the rights, obligations, and responsibilities of the users and service operators.
               </p>
             </section>
 
@@ -59,7 +59,7 @@ function Terms() {
                 <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
                 Article 2 (Service Content)
               </h2>
-              <p>ChatFolio provides the following features to users:</p>
+              <p>GitGraph provides the following features to users:</p>
               <ul className="list-disc pl-6 mt-2 space-y-1">
                 <li>GitHub repository dependency analysis and visualization</li>
                 <li>AI-based code explanation and Q&A</li>
@@ -98,7 +98,7 @@ function Terms() {
       </main>
 
       <footer className="w-full text-center p-10 text-slate-600 text-sm border-t border-white/5 mt-20">
-        &copy; 2026 ChatFolio. Designed for the Next Generation of Developers.
+        &copy; 2026 GitGraph. Designed for the Next Generation of Developers.
       </footer>
     </div>
   );

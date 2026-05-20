@@ -244,7 +244,7 @@ function Analysis() {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
             <Brain className="w-5 h-5 text-white" />
           </div>
-          <span className="font-black tracking-tighter text-xl text-white">ChatFolio</span>
+          <span className="font-black tracking-tighter text-xl text-white">GitGraph</span>
         </div>
         <div className="flex items-center gap-6">
           <button 
@@ -261,7 +261,7 @@ function Analysis() {
         <div className="text-center mb-12 animate-fade-in-up">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/50 border border-slate-700/50 text-blue-400 text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
-            <span>ChatFolio AI Beta</span>
+            <span>GitGraph AI Beta</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
             Start a Conversation<br />with Your Code.
@@ -623,7 +623,7 @@ function Analysis() {
               <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mb-6 mx-auto">
                 <Sparkles size={32} className="animate-pulse" />
               </div>
-              <h2 className="text-3xl font-black text-white text-center mb-2 tracking-tight">Welcome to ChatFolio!</h2>
+              <h2 className="text-3xl font-black text-white text-center mb-2 tracking-tight">Welcome to GitGraph!</h2>
               <p className="text-slate-400 text-center mb-8">Short survey to enhance your analysis experience.</p>
               <div className="space-y-6">
                 <div>
@@ -672,8 +672,8 @@ function Analysis() {
           <button onClick={() => navigate('/faq')} className="hover:text-white transition-colors">Support (FAQ)</button>
         </div>
         <div className="text-xs text-slate-600 space-y-2">
-          <p>CEO : Jaehee Lee | TEL : 02-529-4237 | Mail : ChatFolio@chatfolio.com</p>
-          <p>&copy; 2026 ChatFolio. Designed for the Next Generation of Developers.</p>
+          <p>CEO : Jaehee Lee | TEL : 02-529-4237 | Mail : GitGraph@gitgraph.com</p>
+          <p>&copy; 2026 GitGraph. Designed for the Next Generation of Developers.</p>
         </div>
       </footer>
     </div>

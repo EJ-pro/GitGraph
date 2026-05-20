@@ -93,7 +93,7 @@ const Doc = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 bg-black/40 rounded-2xl border border-white/5">
                     <span className="text-slate-400">프로젝트명</span>
-                    <span className="text-white font-bold">ChatFolio</span>
+                    <span className="text-white font-bold">GitGraph</span>
                   </div>
                   <p className="text-slate-300 leading-relaxed">
                     AI 기반 분석, 아키텍처 시각화, 그리고 대화형 인터페이스를 통해 개발자가 복잡한 GitHub 저장소를 빠르게 이해할 수 있도록 돕는 서비스입니다.
@@ -511,7 +511,7 @@ const Doc = () => {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
               <Brain className="w-5 h-5 text-white" />
             </div>
-            <span className="text-2xl font-black tracking-tighter text-white">ChatFolio <span className="text-blue-500">Docs</span></span>
+            <span className="text-2xl font-black tracking-tighter text-white">GitGraph <span className="text-blue-500">Docs</span></span>
           </div>
           <nav className="hidden md:flex gap-6 items-center">
             <button onClick={() => navigate('/doc/pipeline')} className="text-slate-400 hover:text-white font-bold transition-colors">심층 파이프라인</button>
@@ -562,8 +562,8 @@ const Doc = () => {
 
       <footer className="mt-20 border-t border-white/5 bg-slate-950/80 p-12 relative z-10">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="text-slate-500 text-sm mb-4 font-medium">ChatFolio 프로젝트 문서화 시스템 v1.0</div>
-          <div className="text-xs text-slate-600">&copy; 2026 ChatFolio. Designed for the Next Generation of Developers.</div>
+          <div className="text-slate-500 text-sm mb-4 font-medium">GitGraph 프로젝트 문서화 시스템 v1.0</div>
+          <div className="text-xs text-slate-600">&copy; 2026 GitGraph. Designed for the Next Generation of Developers.</div>
         </div>
       </footer>
     </div>

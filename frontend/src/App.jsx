@@ -3,6 +3,7 @@ import Login from './pages/Login';
 import Analysis from './pages/Analysis';
 import Chat from './pages/Chat';
 import DocsTab from './pages/DocsTab';
+import ObsidianTab from './pages/ObsidianTab';
 import InterviewTab from './pages/InterviewTab';
 import ArchitectureTab from './pages/ArchitectureTab';
 import AuthCallback from './pages/AuthCallback';
@@ -89,6 +90,7 @@ function App() {
           <Route path="architecture" element={<ArchitectureTab />} />
           <Route path="pipeline" element={<PipelineTab />} />
           <Route path="docs" element={<DocsTab />} />
+          <Route path="obsidian" element={<ObsidianTab />} />
           <Route path="interview" element={<InterviewTab />} />
         </Route>
 
