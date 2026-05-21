@@ -7,7 +7,7 @@ import ObsidianTab from './pages/ObsidianTab';
 import InterviewTab from './pages/InterviewTab';
 import ArchitectureTab from './pages/ArchitectureTab';
 import AuthCallback from './pages/AuthCallback';
-import { Search, Github, Loader2, GitBranch, FileCode2, Share2, Sparkles, MessageSquare, BookOpen, Layers } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { authService } from './api';
 import { useNavigate } from 'react-router-dom';
@@ -20,39 +20,36 @@ import DocDeepPipeline from './pages/DocDeepPipeline/DocDeepPipeline.jsx';
 import PipelineTab from './pages/PipelineTab';
 import Doc from './pages/Doc';
 
+const isLoggedIn = () =>
+  document.cookie.split(';').some(c => c.trim().startsWith('logged_in='));
+
 // 인증 가드 컴포넌트
 function ProtectedRoute({ children }) {
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
+  if (!isLoggedIn()) {
     return <Navigate to="/login" replace />;
   }
-  
   return children;
 }
 
 // 홈 리다이렉트 컴포넌트 (루트 / 접속 시 처리)
 function Home() {
-  const token = localStorage.getItem('token');
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!token) {
+    if (!isLoggedIn()) {
       navigate('/login', { replace: true });
       return;
     }
 
-    // 토큰이 있으면 유저 정보를 가져와서 해당 유저의 경로로 이동
     authService.me()
-    .then(user => {
-      const username = user.github_username || user.name;
-      navigate(`/${username}/analysis`, { replace: true });
-    })
-    .catch(() => {
-      localStorage.removeItem('token');
-      navigate('/login', { replace: true });
-    });
-  }, [token, navigate]);
+      .then(user => {
+        const username = user.github_username || user.name;
+        navigate(`/${username}/analysis`, { replace: true });
+      })
+      .catch(() => {
+        navigate('/login', { replace: true });
+      });
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">

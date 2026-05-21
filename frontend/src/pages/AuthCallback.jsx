@@ -1,31 +1,22 @@
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { authService } from '../api';
 
 function AuthCallback() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    if (token) {
-      localStorage.setItem('token', token);
-      
-      // 사용자 정보를 가져와서 해당 유저의 메인으로 이동
-      authService.me()
+    // 쿠키는 백엔드 리다이렉트 시 자동 설정됨 — /auth/me로 유저 확인
+    authService.me()
       .then(user => {
         const username = user.github_username || user.name;
         navigate(`/${username}/analysis`);
       })
       .catch(() => {
-        navigate('/');
+        navigate('/login');
       });
-    } else {
-      alert("Authentication failed. Please try again.");
-      navigate('/login');
-    }
-  }, [searchParams, navigate]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">

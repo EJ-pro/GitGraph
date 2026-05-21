@@ -111,10 +111,8 @@ function Analysis() {
     try {
       const response = await fetch(`${BASE_URL}/analyze`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           repo_url: targetUrl,
           provider: provider,
@@ -124,8 +122,7 @@ function Analysis() {
         })
       });
 
-      if (response.status === 401 || response.status === 403 || response.status === 404) {
-        localStorage.removeItem('token');
+      if (response.status === 401 || response.status === 403) {
         navigate('/login');
         return;
       }
@@ -163,7 +160,8 @@ function Analysis() {
         }
       }
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError('분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       setIsLoading(false);
     }
   };

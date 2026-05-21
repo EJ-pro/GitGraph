@@ -1,6 +1,9 @@
 import base64
+import logging
 import os
 from github import Github, Auth
+
+logger = logging.getLogger(__name__)
 
 class GitHubFetcher:
     def __init__(self, token: str):
@@ -77,7 +80,7 @@ class GitHubFetcher:
         total_files = len(all_blobs)
         
         msg = f"📂 [{repo.full_name}] ({branch}) 스캔 중... (총 {total_files}개 파일)"
-        print(msg)
+        logger.info(msg)
         if progress_callback: progress_callback(msg)
 
         # 최신 커밋 정보 가져오기
@@ -102,7 +105,7 @@ class GitHubFetcher:
                     yield element.path, content
                 except Exception as e:
                     error_msg = f"   ❌ 읽기 실패: {element.path} ({e})"
-                    print(error_msg)
+                    logger.warning(error_msg)
                     if progress_callback:
                         progress_callback(error_msg)
         

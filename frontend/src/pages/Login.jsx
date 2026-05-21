@@ -172,7 +172,7 @@ function Login() {
   });
 
   useEffect(() => {
-    if (localStorage.getItem('token')) navigate('/');
+    if (document.cookie.split(';').some(c => c.trim().startsWith('logged_in='))) navigate('/');
     
     // 글로벌 통계 가져오기
     dashboardService.getGlobalStats()

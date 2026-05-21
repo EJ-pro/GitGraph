@@ -178,10 +178,8 @@ function Chat() {
     try {
       const response = await fetch(`${BASE_URL}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
           query: input,

@@ -1,11 +1,7 @@
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-const getHeaders = () => {
-  const token = localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-  };
+const BASE_OPTS = {
+  credentials: 'include',
 };
 
 const handleResponse = async (response) => {
@@ -19,15 +15,17 @@ const handleResponse = async (response) => {
 export const api = {
   get: async (endpoint) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
-      headers: getHeaders(),
+      ...BASE_OPTS,
+      headers: { 'Content-Type': 'application/json' },
     });
     return handleResponse(response);
   },
 
   post: async (endpoint, body) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...BASE_OPTS,
       method: 'POST',
-      headers: getHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     return handleResponse(response);
@@ -35,8 +33,9 @@ export const api = {
 
   patch: async (endpoint, body) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...BASE_OPTS,
       method: 'PATCH',
-      headers: getHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     return handleResponse(response);
@@ -44,8 +43,9 @@ export const api = {
 
   delete: async (endpoint) => {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...BASE_OPTS,
       method: 'DELETE',
-      headers: getHeaders(),
+      headers: { 'Content-Type': 'application/json' },
     });
     return handleResponse(response);
   },
@@ -54,6 +54,7 @@ export const api = {
 export const authService = {
   me: () => api.get('/auth/me'),
   login: (code) => api.get(`/auth/callback?code=${code}`),
+  logout: () => api.post('/auth/logout', {}),
   updateProfile: (data) => api.patch('/user/profile', data),
   getProfile: (username) => api.get(`/auth/profile/${username}`),
   getGithubRepos: () => api.get('/auth/github/repos'),

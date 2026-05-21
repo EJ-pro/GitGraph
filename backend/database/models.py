@@ -1,9 +1,12 @@
+import logging
+import uuid
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from .database import Base, engine
-import uuid
+
+logger = logging.getLogger(__name__)
 
 class User(Base):
     __tablename__ = "users"
@@ -194,12 +197,12 @@ def init_db():
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_project_files_importance ON project_files (project_id, importance_score)"))
                     conn.commit()
                 except Exception as e:
-                    print(f"Migration error: {e}")
-            print("Database initialized successfully.")
+                    logger.error("Migration error: %s", e)
+            logger.info("Database initialized successfully.")
             break
         except OperationalError:
             retries -= 1
-            print(f"Database not ready. Retrying... ({retries} left)")
+            logger.warning("Database not ready. Retrying... (%d left)", retries)
             time.sleep(2)
     else:
-        print("Could not connect to the database.")
+        logger.error("Could not connect to the database.")

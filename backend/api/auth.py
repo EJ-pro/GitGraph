@@ -1,19 +1,20 @@
+import logging
 import os
-from datetime import datetime, timedelta
+import json
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse, Response
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from fastapi_sso.sso.github import GithubSSO
 from github import Github, Auth
-from sqlalchemy import func
 
 from database.database import get_db
-from database.models import User, Project, GeneratedReadme, ProjectFile, ChatSession
-from core.parser.github_fetcher import GitHubFetcher
+from database.models import User, Project, GeneratedReadme, ChatSession
 
-from core.rag.engine import ChatFolioEngine
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,20 +28,26 @@ if not _jwt_secret:
     _env = os.getenv("ENV", "development")
     if _env == "production":
         sys.exit("FATAL: JWT_SECRET_KEY is not set. Server startup aborted.")
-    _jwt_secret = "fallback_secret_key_for_dev_only"
+    import secrets
+    _jwt_secret = secrets.token_hex(32)
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "JWT_SECRET_KEY not set — using ephemeral random key. Tokens will be invalidated on restart."
+    )
 JWT_SECRET_KEY = _jwt_secret
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 
 GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost")
+_ENV = os.getenv("ENV", "development")
 
 # SSO 객체 초기화 (Redirect URI는 프론트엔드가 아니라 백엔드의 callback 주소입니다)
 github_sso = GithubSSO(
     client_id=GITHUB_CLIENT_ID,
     client_secret=GITHUB_CLIENT_SECRET,
     redirect_uri=GITHUB_REDIRECT_URI,
-    allow_insecure_http=True, # 개발 환경(http) 허용
+    allow_insecure_http=(_ENV != "production"),
     scope=["user:email", "repo"] # 프라이빗 레포지토리 접근 권한 추가
 )
 
@@ -48,30 +55,35 @@ github_sso = GithubSSO(
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
 # 현재 로그인한 사용자 검증 (Dependency)
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    token = credentials.credentials
+def get_current_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db),
+):
+    token = credentials.credentials if credentials else request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         user_id: int = payload.get("sub")
         if user_id is None:
-            raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다.")
+            raise HTTPException(status_code=401, detail="Invalid token.")
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="토큰 검증에 실패했습니다.")
-    
+        raise HTTPException(status_code=401, detail="Token validation failed.")
+
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="User not found.")
     return user
 
 # 공통 소셜 로그인 콜백 처리 로직
@@ -107,9 +119,30 @@ async def process_sso_login(sso_user, provider: str, db: Session, github_usernam
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
-    
-    # 프론트엔드로 리다이렉트 (토큰 포함)
-    return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?token={access_token}")
+
+    # HttpOnly 쿠키로 전달 (URL에 토큰 노출 없음)
+    _is_prod = (_ENV == "production")
+    response = RedirectResponse(url=f"{FRONTEND_URL}/auth/callback")
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=_is_prod,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    # JS에서 로그인 여부만 확인하는 비민감 플래그 쿠키
+    response.set_cookie(
+        key="logged_in",
+        value="1",
+        httponly=False,
+        secure=_is_prod,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return response
 
 # 현재 사용자 정보 조회
 @router.get("/me")
@@ -117,7 +150,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
     # 만료 여부 체크 및 처리
     current_tier = current_user.tier
     if current_user.tier == "pro" and current_user.pro_expires_at:
-        if datetime.utcnow() > current_user.pro_expires_at:
+        if datetime.now(timezone.utc) > current_user.pro_expires_at:
             current_tier = "free"
             # DB에도 반영 (선택 사항, 여기서는 응답에서만 처리하거나 추후 배치를 돌릴 수 있음)
 
@@ -134,12 +167,24 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "pro_expires_at": current_user.pro_expires_at
     }
 
+@router.post("/logout")
+async def logout():
+    _is_prod = (_ENV == "production")
+    response = Response(
+        content=json.dumps({"status": "ok"}),
+        media_type="application/json",
+    )
+    response.delete_cookie("access_token", path="/", samesite="lax", secure=_is_prod)
+    response.delete_cookie("logged_in", path="/", samesite="lax", secure=_is_prod)
+    return response
+
+
 # 등급 업그레이드 (결제 시뮬레이션)
 @router.post("/upgrade")
 async def upgrade_tier(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     current_user.tier = "pro"
     # 현재 시간으로부터 30일 뒤 만료
-    current_user.pro_expires_at = datetime.utcnow() + timedelta(days=30)
+    current_user.pro_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
     db.commit()
     db.refresh(current_user)
     
@@ -155,7 +200,7 @@ async def upgrade_tier(db: Session = Depends(get_db), current_user: User = Depen
 async def get_user_profile(username: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.github_username == username).first()
     if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="User not found.")
     
     # 완료된 프로젝트 데이터만 가져오기
     projects = db.query(Project).filter(Project.user_id == user.id, Project.status == "COMPLETED").all()
@@ -189,12 +234,12 @@ async def get_user_profile(username: str, db: Session = Depends(get_db)):
                         if isinstance(byte_count, int):
                             lang_stats[lang] = lang_stats.get(lang, 0) + byte_count
                 except Exception as repo_err:
-                    print(f"Failed to fetch languages for {repo_path}: {repo_err}")
+                    logger.warning("Failed to fetch languages for %s: %s", repo_path, repo_err)
             
             if changed:
                 db.commit() # 한 번에 커밋
         except Exception as e:
-            print(f"Failed to fetch languages from GitHub API: {e}")
+            logger.warning("Failed to fetch languages from GitHub API: %s", e)
             
     # GitHub API에서 언어 정보를 가져오지 못했다면 기존 Insight 정보 활용 (가장 빠름)
     if not lang_stats:
@@ -305,7 +350,7 @@ async def get_github_repos(current_user: User = Depends(get_current_user)):
             } for r in repos[:20]
         ]
     except Exception as e:
-        print(f"GitHub API Error: {e}")
+        logger.warning("GitHub API Error: %s", e)
         return []
 
 # 라우터 - GitHub

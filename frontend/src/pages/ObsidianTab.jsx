@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Download, Loader2, Network, FileText, CheckCircle2, ChevronRight, HelpCircle, Layers, Info } from 'lucide-react';
+import { Download, Loader2, Network, HelpCircle, Layers, Info } from 'lucide-react';
 import { BASE_URL, projectService } from '../api';
 
 function ObsidianTab() {
@@ -43,9 +43,7 @@ function ObsidianTab() {
     setIsDownloading(true);
     try {
       const response = await fetch(`${BASE_URL}/generate/obsidian-vault?session_id=${sessionId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        credentials: 'include',
       });
       if (!response.ok) {
         throw new Error('Failed to export Obsidian Vault');

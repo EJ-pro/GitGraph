@@ -55,13 +55,18 @@ def record_token_usage(db: Session, user_id: int, model_name: str, feature_name:
         db.rollback()
 
 
+_PII_PATTERNS = [
+    re.compile(r"(?:01[016789]|02|0[3-6]\d)[-.\s]?\d{3,4}[-.\s]?\d{4}"),   # 한국 전화번호
+    re.compile(r"\d{6}[-.\s]?[1-4]\d{6}"),                                   # 주민등록번호
+    re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"),          # 이메일
+    re.compile(r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),                              # 신용카드 번호
+    re.compile(r"(?:sk-|ghp_|AIza|ya29\.)[A-Za-z0-9_\-]{20,}"),             # API 키 패턴
+]
+
 def contains_pii(text: str) -> bool:
     if not text:
         return False
-    phone_pattern = re.compile(r"(?:01[016789]|02|0[3-6]\d)[-.\s]?\d{3,4}[-.\s]?\d{4}")
-    rrn_pattern = re.compile(r"\d{6}[-.\s]?[1-4]\d{6}")
-    email_pattern = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
-    return bool(phone_pattern.search(text) or rrn_pattern.search(text) or email_pattern.search(text))
+    return any(p.search(text) for p in _PII_PATTERNS)
 
 
 def _build_files_metadata(project_files) -> dict:
@@ -86,8 +91,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(auth_router)
@@ -102,7 +107,7 @@ async def create_inquiry(request: Request, db: Session = Depends(get_db), curren
     title = data.get("title")
     content = data.get("content")
     if not title or not content:
-        raise HTTPException(status_code=400, detail="제목과 내용을 입력해주세요.")
+        raise HTTPException(status_code=400, detail="Title and content are required.")
     inquiry = Inquiry(user_id=current_user.id, title=title, content=content)
     db.add(inquiry)
     db.commit()
@@ -158,10 +163,11 @@ _ENGINE_CACHE_TTL = int(os.getenv("ENGINE_CACHE_TTL_SECONDS", "3600"))
 
 
 class _TTLCache:
-    """session_id → engine 매핑. TTL 초과 항목은 접근 시 자동 제거."""
+    """session_id → engine 매핑. TTL 초과 항목은 접근 시 자동 제거 + 백그라운드 주기 정리."""
     def __init__(self, ttl: int):
         self._ttl = ttl
         self._store: dict = {}
+        self._start_eviction_thread()
 
     def __contains__(self, key):
         if key in self._store:
@@ -173,7 +179,6 @@ class _TTLCache:
 
     def __setitem__(self, key, value):
         self._store[key] = (value, time.monotonic())
-        self._evict()
 
     def get(self, key, default=None):
         return self._store[key][0] if key in self else default
@@ -185,6 +190,14 @@ class _TTLCache:
             del self._store[k]
         if expired:
             logger.info("engine_cache: evicted %d expired session(s)", len(expired))
+
+    def _start_eviction_thread(self):
+        def _loop():
+            while True:
+                time.sleep(self._ttl // 2 or 30)
+                self._evict()
+        t = Thread(target=_loop, daemon=True)
+        t.start()
 
 
 engine_cache = _TTLCache(_ENGINE_CACHE_TTL)
@@ -252,10 +265,13 @@ async def analyze_repository(request: AnalyzeRequest, db: Session = Depends(get_
             logger.warning("Failed to check latest commit, proceeding with full analysis: %s", _e)
 
     def generate():
-        q: Queue = Queue()
+        q: Queue = Queue(maxsize=200)
 
         def progress_callback(msg):
-            q.put(msg)
+            try:
+                q.put(msg, timeout=5)
+            except Exception:
+                pass  # 클라이언트 지연 시 메시지 드롭
 
         def run_analysis():
             db_session = SessionLocal()
@@ -448,8 +464,7 @@ async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_
             )
             engine_cache[session_id] = engine
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Engine initialization failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Engine initialization failed: {str(e)}")
 
     try:
@@ -469,6 +484,7 @@ async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_
         db.commit()
 
         async def chat_stream():
+            db_session = SessionLocal()
             try:
                 stream_gen = engine.ask_stream(request.query, history=history, language=request.language)
                 sources = []
@@ -490,8 +506,6 @@ async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_
                             break
                         yield f"data: {json.dumps({'token': item['token']})}\n\n"
                     elif item["type"] == "done":
-                        # Save assistant message
-                        db_session = SessionLocal()
                         try:
                             db_session.add(ChatMessage(
                                 session_id=session_id,
@@ -510,8 +524,6 @@ async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_
                         except Exception as e:
                             db_session.rollback()
                             logger.warning("Error saving chat assistant message: %s", e)
-                        finally:
-                            db_session.close()
 
                         yield f"data: {json.dumps({'status': 'done'})}\n\n"
 
@@ -521,7 +533,6 @@ async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_
                             None, engine._evaluate_answer, request.query, full_answer, context_text
                         )
 
-                        db_session = SessionLocal()
                         try:
                             msg = db_session.query(ChatMessage).filter(
                                 ChatMessage.session_id == session_id,
@@ -533,15 +544,14 @@ async def chat_ask(request: ChatRequest, db: Session = Depends(get_db), current_
                         except Exception as e:
                             db_session.rollback()
                             logger.warning("Error updating evaluation: %s", e)
-                        finally:
-                            db_session.close()
 
                         yield f"data: {json.dumps({'evaluation': evaluation})}\n\n"
 
             except Exception as e:
-                import traceback
-                traceback.print_exc()
+                logger.exception("chat_stream error: %s", e)
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            finally:
+                db_session.close()
 
         return StreamingResponse(chat_stream(), media_type="text/event-stream")
     except Exception as e:

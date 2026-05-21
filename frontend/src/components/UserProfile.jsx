@@ -46,8 +46,8 @@ function UserProfile() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+    await authService.logout().catch(() => {});
     navigate('/login');
   };
 
