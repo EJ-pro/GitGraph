@@ -2,7 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const API_PATHS = [
-  '/auth', '/analyze', '/chat', '/projects', '/inquiries',
+  '/auth/me', '/auth/logout', '/auth/upgrade', '/auth/profile', '/auth/github',
+  '/analyze', '/chat', '/projects', '/inquiries',
   '/stats', '/overview', '/status', '/generate', '/readmes', '/user',
 ]
 

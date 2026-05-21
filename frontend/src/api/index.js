@@ -5,6 +5,10 @@ const BASE_OPTS = {
 };
 
 const handleResponse = async (response) => {
+  if (response.status === 401) {
+    // 세션 만료 등으로 401 반환 시 프론트엔드 로그인 여부 쿠키를 비워 로그인 페이지 리다이렉션을 돕습니다.
+    document.cookie = "logged_in=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error occurred' }));
     throw new Error(error.detail || response.statusText);

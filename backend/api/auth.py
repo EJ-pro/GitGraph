@@ -150,7 +150,10 @@ async def get_me(current_user: User = Depends(get_current_user)):
     # 만료 여부 체크 및 처리
     current_tier = current_user.tier
     if current_user.tier == "pro" and current_user.pro_expires_at:
-        if datetime.now(timezone.utc) > current_user.pro_expires_at:
+        expires_at = current_user.pro_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expires_at:
             current_tier = "free"
             # DB에도 반영 (선택 사항, 여기서는 응답에서만 처리하거나 추후 배치를 돌릴 수 있음)
 

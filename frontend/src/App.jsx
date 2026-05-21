@@ -47,6 +47,8 @@ function Home() {
         navigate(`/${username}/analysis`, { replace: true });
       })
       .catch(() => {
+        // 인증 실패 시 logged_in 쿠키를 삭제하여 무한 리다이렉트 루프를 방지합니다.
+        document.cookie = "logged_in=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
         navigate('/login', { replace: true });
       });
   }, [navigate]);
